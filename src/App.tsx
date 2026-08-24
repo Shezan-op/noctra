@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import Lenis from 'lenis';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { Preloader } from './components/Preloader';
@@ -18,6 +20,8 @@ import { Footer } from './components/Footer';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 
+gsap.registerPlugin(ScrollTrigger);
+
 export function App() {
   useEffect(() => {
     // Initialize Lenis smooth scroll
@@ -32,15 +36,24 @@ export function App() {
       infinite: false,
     });
 
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
+    // Synchronize Lenis with GSAP ScrollTrigger
+    lenis.on('scroll', ScrollTrigger.update);
 
-    const rafId = requestAnimationFrame(raf);
+    const tickerCallback = (time: number) => {
+      lenis.raf(time * 1000);
+    };
+
+    gsap.ticker.add(tickerCallback);
+    gsap.ticker.lagSmoothing(0);
+
+    // Refresh ScrollTrigger after DOM renders
+    const refreshTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 1000);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      clearTimeout(refreshTimer);
+      gsap.ticker.remove(tickerCallback);
       lenis.destroy();
     };
   }, []);

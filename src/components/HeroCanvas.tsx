@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, useCallback, type FC, type PointerEvent } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, ShoppingBag } from 'lucide-react';
+import { PRODUCTS } from '../data/products';
+import { useCart } from '../context/CartContext';
 
 interface HeroCanvasProps {
   onGarmentChange?: (name: string, index: number) => void;
+  controlledIndex?: number;
 }
 
-const GARMENTS = [
-  { name: 'GHOST HOODIE', src: '/white-hoodie.png', ref: 'REF.01', weight: '480 GSM TERRY', fit: 'OVERSIZED BOXY' },
-  { name: 'OBSIDIAN BUTTON-UP', src: '/black-shirt.png', ref: 'REF.03', weight: '220 GSM POPLIN', fit: 'ARCHITECTURAL' },
-  { name: 'VOID SWEATSHIRT', src: '/sweatshirt.png', ref: 'REF.02', weight: '450 GSM FLEECE', fit: 'DROP SHOULDER' },
-  { name: 'CORE HEAVY TEE', src: '/white-t-shirt.png', ref: 'REF.04', weight: '280 GSM JERSEY', fit: 'TUBULAR KNIT' },
-  { name: 'COMBAT TROUSERS', src: '/pant.png', ref: 'REF.05', weight: '340 GSM RIPSTOP', fit: 'ARTICULATED' },
-  { name: 'MONOLITH SHIRT', src: '/white-shirt.png', ref: 'REF.06', weight: '230 GSM BROADCLOTH', fit: 'SCULPTURAL' },
+export const GARMENTS = [
+  { name: 'GHOST HOODIE', src: '/white-hoodie.png', ref: 'REF.01', weight: '480 GSM TERRY', fit: 'OVERSIZED BOXY', price: 120, productId: 'ghost-hoodie' },
+  { name: 'OBSIDIAN BUTTON-UP', src: '/black-shirt.png', ref: 'REF.03', weight: '220 GSM POPLIN', fit: 'ARCHITECTURAL', price: 140, productId: 'obsidian-button-up' },
+  { name: 'VOID SWEATSHIRT', src: '/sweatshirt.png', ref: 'REF.02', weight: '450 GSM FLEECE', fit: 'DROP SHOULDER', price: 95, productId: 'void-sweatshirt' },
+  { name: 'CORE HEAVY TEE', src: '/white-t-shirt.png', ref: 'REF.04', weight: '280 GSM JERSEY', fit: 'TUBULAR KNIT', price: 45, productId: 'core-tee' },
+  { name: 'COMBAT TROUSERS', src: '/pant.png', ref: 'REF.05', weight: '340 GSM RIPSTOP', fit: 'ARTICULATED', price: 165, productId: 'combat-trousers' },
+  { name: 'MONOLITH SHIRT', src: '/white-shirt.png', ref: 'REF.06', weight: '230 GSM BROADCLOTH', fit: 'SCULPTURAL', price: 130, productId: 'monolith-shirt' },
 ];
 
 interface Particle {
@@ -31,42 +34,41 @@ interface Particle {
   alpha: number;
 }
 
-export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
+export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledIndex }) => {
+  const { openProductModal, addToCart } = useCart();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
+  
   const [isCanvasSupported, setIsCanvasSupported] = useState(true);
   const [morphPhase, setMorphPhase] = useState<'solid' | 'dissolving' | 'morphing' | 'solidifying'>('solid');
 
   const particlesRef = useRef<Particle[]>([]);
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const stateRef = useRef({
-    imageOpacity: 1.0, // 0 = invisible, 1 = fully solid real image
-    particleOpacity: 0.0, // 0 = invisible, 1 = fully visible particles
-    phase: 'solid' as 'solid' | 'dissolving' | 'morphing' | 'solidifying',
-    phaseStartTime: Date.now(),
     currentIndex: 0,
     targetIndex: 0,
-    autoTimer: 0,
+    morphProgress: 1,
+    imageOpacity: 1,
+    particleOpacity: 0,
+    phase: 'solid' as 'solid' | 'dissolving' | 'morphing' | 'solidifying',
+    phaseStartTime: 0,
   });
 
-  const mouseRef = useRef<{ x: number; y: number; radius: number; active: boolean }>({
+  const mouseRef = useRef({
     x: -1000,
     y: -1000,
     radius: 80,
     active: false,
   });
 
-  // Adaptive particle spacing
   const getParticleSpacing = (width: number) => {
-    if (width < 640) return 12; // Mobile
-    if (width < 1024) return 10; // Tablet
-    return 8; // Desktop
+    if (width < 640) return 12;
+    if (width < 1024) return 10;
+    return 8;
   };
 
-  // Helper to extract particle grid targets from an image
   const extractParticleTargets = useCallback((img: HTMLImageElement, canvasWidth: number, canvasHeight: number) => {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvasWidth;
@@ -97,7 +99,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
             let r = data[index];
             let g = data[index + 1];
             let b = data[index + 2];
-            // Ensure contrast on dark background
             if (r < 35 && g < 35 && b < 35) {
               r = 50;
               g = 50;
@@ -118,7 +119,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
     }
   }, []);
 
-  // Initiate Morph Sequence: Solid Image -> Dissolve to Particles -> Swarm to Next Shape -> Solidify into Real Cloth
   const morphToGarment = useCallback((nextIdx: number) => {
     if (!canvasRef.current || imagesRef.current.length === 0) return;
     const canvas = canvasRef.current;
@@ -132,12 +132,13 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
     }
 
     const state = stateRef.current;
+    if (state.phase !== 'solid' && state.targetIndex === nextIdx) return;
+    
     state.targetIndex = nextIdx;
     state.phase = 'dissolving';
     state.phaseStartTime = performance.now();
     setMorphPhase('dissolving');
 
-    // Shuffle targets for chaotic cool dispersion
     const shuffledTargets = [...targets].sort(() => Math.random() - 0.5);
     const currentParticles = particlesRef.current;
     const maxCount = Math.max(currentParticles.length, shuffledTargets.length);
@@ -160,13 +161,16 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
         p.alpha = 1;
         newParticles.push(p);
       } else {
-        const seedX = canvas.width / 2 + (Math.random() - 0.5) * 100;
-        const seedY = canvas.height / 2 + (Math.random() - 0.5) * 100;
+        const spawnAngle = Math.random() * Math.PI * 2;
+        const spawnDist = 40 + Math.random() * 120;
+        const sx = canvas.width / 2 + Math.cos(spawnAngle) * spawnDist;
+        const sy = canvas.height / 2 + Math.sin(spawnAngle) * spawnDist;
+
         newParticles.push({
-          x: seedX,
-          y: seedY,
-          originX: target.x,
-          originY: target.y,
+          x: sx,
+          y: sy,
+          originX: sx,
+          originY: sy,
           targetX: target.x,
           targetY: target.y,
           color: target.color,
@@ -176,64 +180,76 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
           vy: 0,
           scatterVx: Math.cos(scatterAngle) * scatterSpeed,
           scatterVy: Math.sin(scatterAngle) * scatterSpeed,
-          alpha: 1,
+          alpha: 0.8,
         });
       }
     }
 
-    if (newParticles.length > shuffledTargets.length) {
-      newParticles.splice(shuffledTargets.length);
-    }
-
     particlesRef.current = newParticles;
     setCurrentIndex(nextIdx);
-    state.currentIndex = nextIdx;
-
     if (onGarmentChange) {
       onGarmentChange(GARMENTS[nextIdx].name, nextIdx);
     }
   }, [extractParticleTargets, onGarmentChange]);
 
+  // Sync with controlled index from vertical scroll
+  useEffect(() => {
+    if (controlledIndex !== undefined && controlledIndex >= 0 && controlledIndex < GARMENTS.length) {
+      if (controlledIndex !== currentIndex) {
+        morphToGarment(controlledIndex);
+      }
+    }
+  }, [controlledIndex, currentIndex, morphToGarment]);
+
   const nextGarment = useCallback(() => {
-    const nextIdx = (currentIndex + 1) % GARMENTS.length;
-    morphToGarment(nextIdx);
+    const next = (currentIndex + 1) % GARMENTS.length;
+    morphToGarment(next);
   }, [currentIndex, morphToGarment]);
 
   const prevGarment = useCallback(() => {
-    const prevIdx = (currentIndex - 1 + GARMENTS.length) % GARMENTS.length;
-    morphToGarment(prevIdx);
+    const prev = (currentIndex - 1 + GARMENTS.length) % GARMENTS.length;
+    morphToGarment(prev);
   }, [currentIndex, morphToGarment]);
 
-  // Load all garment images
+  // Preload images
   useEffect(() => {
-    let isCancelled = false;
+    let active = true;
 
     const loadImages = async () => {
-      const promises = GARMENTS.map((g) => {
-        return new Promise<HTMLImageElement | null>((resolve) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = g.src;
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
+      const loaded: HTMLImageElement[] = [];
+
+      for (let i = 0; i < GARMENTS.length; i++) {
+        const img = new Image();
+        img.src = GARMENTS[i].src;
+        img.crossOrigin = 'anonymous';
+
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            loaded[i] = img;
+            resolve();
+          };
+          img.onerror = () => {
+            console.warn(`Could not load ${GARMENTS[i].src}`);
+            resolve();
+          };
         });
-      });
+      }
 
-      const loaded = await Promise.all(promises);
-      if (isCancelled) return;
+      if (!active) return;
+      imagesRef.current = loaded;
 
-      const validImages = loaded.filter((img): img is HTMLImageElement => img !== null);
-      imagesRef.current = validImages;
+      if (containerRef.current && canvasRef.current && loaded.length > 0) {
+        const container = containerRef.current;
+        const canvas = canvasRef.current;
+        const rect = container.getBoundingClientRect();
 
-      if (validImages.length > 0 && canvasRef.current && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        canvasRef.current.width = Math.floor(rect.width);
-        canvasRef.current.height = Math.floor(rect.height);
+        canvas.width = Math.max(300, Math.floor(rect.width || window.innerWidth * 0.45));
+        canvas.height = Math.max(300, Math.floor(rect.height || window.innerHeight * 0.55));
 
-        const initialTargets = extractParticleTargets(validImages[0], canvasRef.current.width, canvasRef.current.height);
+        const initialTargets = extractParticleTargets(loaded[0], canvas.width, canvas.height);
 
         if (initialTargets.length > 0) {
-          const particleSize = getParticleSpacing(canvasRef.current.width) * 0.8;
+          const particleSize = getParticleSpacing(canvas.width) * 0.8;
           particlesRef.current = initialTargets.map((t) => ({
             x: t.x,
             y: t.y,
@@ -250,153 +266,173 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
             scatterVy: 0,
             alpha: 1,
           }));
-          stateRef.current.imageOpacity = 1.0;
-          stateRef.current.particleOpacity = 0.0;
+
           stateRef.current.phase = 'solid';
-          setMorphPhase('solid');
-          setIsLoaded(true);
+          stateRef.current.imageOpacity = 1;
+          stateRef.current.particleOpacity = 0;
+          setIsCanvasSupported(true);
         } else {
           setIsCanvasSupported(false);
-          setIsLoaded(true);
         }
       }
+
+      
     };
 
     loadImages();
 
     return () => {
-      isCancelled = true;
+      active = false;
     };
   }, [extractParticleTargets]);
 
-  // Main 60fps Animation Loop with Particle Morph & Image Solidify Illusion
+  // 60 FPS loop
   useEffect(() => {
+    if (!isCanvasSupported) return;
+
     let animationFrameId: number;
 
     const render = (time: number) => {
       const canvas = canvasRef.current;
-      if (!canvas || !isCanvasSupported) return;
+      if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
       const state = stateRef.current;
-      const elapsed = time - state.phaseStartTime;
+      const particles = particlesRef.current;
+      const mouse = mouseRef.current;
+      const currentImage = imagesRef.current[state.currentIndex];
+      const targetImage = imagesRef.current[state.targetIndex];
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Phase State Transitions
-      if (state.phase === 'dissolving') {
-        // 0ms - 400ms: Image fades out, particles burst into view
-        const progress = Math.min(1, elapsed / 400);
-        state.imageOpacity = 1 - progress;
-        state.particleOpacity = Math.min(1, progress * 1.5);
+      const elapsed = time - state.phaseStartTime;
 
-        if (progress >= 1) {
+      if (state.phase === 'dissolving') {
+        const dissolveDuration = 400;
+        const p = Math.min(1, elapsed / dissolveDuration);
+        state.imageOpacity = 1 - p;
+        state.particleOpacity = Math.min(1, p * 1.5);
+
+        if (p >= 1) {
           state.phase = 'morphing';
           state.phaseStartTime = time;
           setMorphPhase('morphing');
         }
       } else if (state.phase === 'morphing') {
-        // 400ms - 1800ms: Particles fly toward new garment target positions
+        const swarmDuration = 750;
+        const p = Math.min(1, elapsed / swarmDuration);
         state.imageOpacity = 0;
         state.particleOpacity = 1;
-        const progress = Math.min(1, elapsed / 1400);
 
-        if (progress >= 1) {
+        if (p >= 1) {
           state.phase = 'solidifying';
           state.phaseStartTime = time;
+          state.currentIndex = state.targetIndex;
           setMorphPhase('solidifying');
         }
       } else if (state.phase === 'solidifying') {
-        // 1800ms - 2800ms: Particles settle, real high-res garment smoothly solidifies
-        const progress = Math.min(1, elapsed / 900);
-        state.imageOpacity = progress;
-        state.particleOpacity = Math.max(0, 1 - progress);
+        const solidifyDuration = 600;
+        const p = Math.min(1, elapsed / solidifyDuration);
+        state.imageOpacity = p;
+        state.particleOpacity = Math.max(0, 1 - p * 1.2);
 
-        if (progress >= 1) {
+        if (p >= 1) {
           state.phase = 'solid';
-          state.imageOpacity = 1.0;
-          state.particleOpacity = 0.0;
+          state.imageOpacity = 1;
+          state.particleOpacity = 0;
           setMorphPhase('solid');
         }
       }
 
-      // 1. Draw Real High-Res Garment Image Layer
-      const currentImg = imagesRef.current[state.currentIndex];
-      if (currentImg && state.imageOpacity > 0.01) {
-        ctx.save();
-        ctx.globalAlpha = state.imageOpacity;
+      // Draw real garment photo
+      if (state.imageOpacity > 0.01 && (targetImage || currentImage)) {
+        const imgToDraw = state.phase === 'dissolving' ? currentImage : (targetImage || currentImage);
+        if (imgToDraw) {
+          ctx.save();
+          ctx.globalAlpha = state.imageOpacity;
 
-        const scale = Math.min((canvas.width * 0.88) / currentImg.width, (canvas.height * 0.88) / currentImg.height);
-        const w = currentImg.width * scale;
-        const h = currentImg.height * scale;
-        const x = (canvas.width - w) / 2;
-        const y = (canvas.height - h) / 2;
+          const scale = Math.min((canvas.width * 0.88) / imgToDraw.width, (canvas.height * 0.88) / imgToDraw.height);
+          const w = imgToDraw.width * scale;
+          const h = imgToDraw.height * scale;
+          const x = (canvas.width - w) / 2;
+          const y = (canvas.height - h) / 2;
 
-        ctx.drawImage(currentImg, x, y, w, h);
-        ctx.restore();
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+          ctx.shadowBlur = 30;
+          ctx.shadowOffsetY = 15;
+
+          ctx.drawImage(imgToDraw, x, y, w, h);
+          ctx.restore();
+        }
       }
 
-      // 2. Draw Interactive Particle Morph Swarm Layer
-      if (state.particleOpacity > 0.01 || state.phase !== 'solid') {
+      // Draw dynamic particles
+      if (state.particleOpacity > 0.01 || mouse.active) {
         ctx.save();
         ctx.globalAlpha = state.particleOpacity;
 
-        const mouse = mouseRef.current;
-        const particles = particlesRef.current;
+        const isDissolving = state.phase === 'dissolving';
+        const isMorphing = state.phase === 'morphing';
+        const isSolidifying = state.phase === 'solidifying';
 
         for (let i = 0; i < particles.length; i++) {
           const p = particles[i];
 
-          if (state.phase === 'dissolving') {
-            // Scatter particles outward
-            p.x += p.scatterVx;
-            p.y += p.scatterVy;
+          if (isDissolving) {
+            p.x += p.scatterVx * 0.45;
+            p.y += p.scatterVy * 0.45;
             p.scatterVx *= 0.92;
             p.scatterVy *= 0.92;
-          } else {
-            // Converge smoothly to target
+          } else if (isMorphing || isSolidifying) {
             const dx = p.targetX - p.x;
             const dy = p.targetY - p.y;
-            p.vx = (p.vx + dx * 0.065) * 0.84;
-            p.vy = (p.vy + dy * 0.065) * 0.84;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // Mouse / Touch Repulsion
-            if (mouse.active) {
-              const mdx = p.x - mouse.x;
-              const mdy = p.y - mouse.y;
-              const dist = Math.sqrt(mdx * mdx + mdy * mdy);
+            const spring = isMorphing ? 0.08 : 0.16;
+            const damping = 0.82;
 
-              if (dist < mouse.radius && dist > 0) {
-                const force = (1 - dist / mouse.radius) * 22;
-                const angle = Math.atan2(mdy, mdx);
-                p.vx += Math.cos(angle) * force;
-                p.vy += Math.sin(angle) * force;
-              }
-            }
+            p.vx = (p.vx + dx * spring) * damping;
+            p.vy = (p.vy + dy * spring) * damping;
 
             p.x += p.vx;
             p.y += p.vy;
+
+            if (dist < 10) {
+              p.color = p.targetColor;
+            }
           }
 
-          // Render Particle Block
-          ctx.fillStyle = p.targetColor || p.color;
-          ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+          if (mouse.active) {
+            const mdx = p.x - mouse.x;
+            const mdy = p.y - mouse.y;
+            const mDist = Math.sqrt(mdx * mdx + mdy * mdy);
+
+            if (mDist < mouse.radius && mDist > 0) {
+              const force = (1 - mDist / mouse.radius) * 12;
+              p.x += (mdx / mDist) * force;
+              p.y += (mdy / mDist) * force;
+            }
+          }
+
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
         }
 
         ctx.restore();
       }
 
-      // 3. Interactive Cursor Hover Particle Sparkles when Solid
-      if (state.phase === 'solid' && mouseRef.current.active) {
-        const mouse = mouseRef.current;
+      // Micro spark
+      if (state.phase === 'solid' && mouse.active) {
         ctx.save();
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        for (let j = 0; j < 5; j++) {
-          const sparkAngle = Math.random() * Math.PI * 2;
-          const sparkDist = Math.random() * mouse.radius * 0.6;
-          const sx = mouse.x + Math.cos(sparkAngle) * sparkDist;
-          const sy = mouse.y + Math.sin(sparkAngle) * sparkDist;
+        for (let i = 0; i < 6; i++) {
+          const sparkAngle = (time * 0.003 + (i * Math.PI) / 3);
+          const sx = mouse.x + Math.cos(sparkAngle) * 25;
+          const sy = mouse.y + Math.sin(sparkAngle) * 25;
           ctx.fillRect(sx, sy, 3, 3);
         }
         ctx.restore();
@@ -408,19 +444,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
   }, [isCanvasSupported]);
-
-  // Auto-morph timer (every 5.5 seconds)
-  useEffect(() => {
-    if (!isLoaded || !isCanvasSupported) return;
-
-    const timer = setInterval(() => {
-      if (stateRef.current.phase === 'solid') {
-        nextGarment();
-      }
-    }, 5500);
-
-    return () => clearInterval(timer);
-  }, [nextGarment, isLoaded, isCanvasSupported]);
 
   // Resize handler
   useEffect(() => {
@@ -454,6 +477,8 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
     mouseRef.current.y = -1000;
   };
 
+  const currentProduct = PRODUCTS.find((p) => p.id === GARMENTS[currentIndex].productId) || PRODUCTS[0];
+
   return (
     <div
       ref={containerRef}
@@ -468,7 +493,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
           className="w-full h-full block cursor-grab active:cursor-grabbing touch-none z-10"
         />
       ) : (
-        /* Fallback */
         <div className="relative w-full h-full flex items-center justify-center p-6">
           <img
             src={GARMENTS[currentIndex].src}
@@ -492,48 +516,63 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange }) => {
         </div>
       </div>
 
-      {/* Interactive Garment Switcher Controls at Bottom of Canvas */}
+      {/* Interactive Controls at Bottom of Canvas */}
       <div className="absolute -bottom-6 sm:bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 w-full max-w-xs sm:max-w-md px-4">
         {/* Silhouette Information Box */}
         <div className="flex items-center justify-between w-full bg-[#121212]/95 backdrop-blur-md border border-white/20 px-3 py-2 text-[10px] font-mono tracking-widest text-white shadow-2xl">
           <span className="text-white/40">{GARMENTS[currentIndex].ref}</span>
           <div className="text-center px-2 truncate">
-            <span className="font-bold uppercase block">{GARMENTS[currentIndex].name}</span>
-            <span className="text-[8px] text-white/50 block tracking-normal">{GARMENTS[currentIndex].weight} &bull; {GARMENTS[currentIndex].fit}</span>
+            <span className="font-bold text-white uppercase">{GARMENTS[currentIndex].name}</span>
+            <span className="text-white/40 block text-[9px]">
+              {GARMENTS[currentIndex].weight} &bull; {GARMENTS[currentIndex].fit}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={prevGarment}
-              className="p-1 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
-              aria-label="Previous Garment"
-              title="Previous Silhouette"
+              aria-label="Previous garment"
+              className="p-1 border border-white/20 hover:bg-white hover:text-black transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={nextGarment}
-              className="p-1 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
-              aria-label="Next Garment"
-              title="Next Silhouette"
+              aria-label="Next garment"
+              className="p-1 border border-white/20 hover:bg-white hover:text-black transition-colors"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Thumbnail / Indicator Dots */}
-        <div className="flex items-center gap-1.5">
+        {/* Quick Modal Inspect & Add to Cart */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openProductModal(currentProduct)}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white hover:text-black text-white text-[10px] font-mono tracking-wider flex items-center gap-1.5 transition-all border border-white/20"
+          >
+            <Eye className="w-3 h-3" />
+            <span>INSPECT SPECS</span>
+          </button>
+          <button
+            onClick={() => addToCart(currentProduct, 'M')}
+            className="px-3 py-1.5 bg-white text-black hover:bg-white/90 text-[10px] font-mono font-bold tracking-wider flex items-center gap-1.5 transition-all"
+          >
+            <ShoppingBag className="w-3 h-3" />
+            <span>QUICK ADD (${GARMENTS[currentIndex].price})</span>
+          </button>
+        </div>
+
+        {/* Morph Index Indicator Bars */}
+        <div className="flex items-center gap-1.5 pt-1">
           {GARMENTS.map((g, idx) => (
             <button
-              key={g.ref}
+              key={idx}
               onClick={() => morphToGarment(idx)}
-              className={`h-1.5 transition-all duration-500 rounded-none cursor-pointer ${
-                idx === currentIndex
-                  ? 'w-7 bg-white shadow-md'
-                  : 'w-2 bg-white/30 hover:bg-white/70'
-              }`}
-              title={`Morph to ${g.name}`}
               aria-label={`Morph to ${g.name}`}
+              className={`h-1 transition-all rounded-none ${
+                currentIndex === idx ? 'w-6 bg-white' : 'w-2 bg-white/30 hover:bg-white/60'
+              }`}
             />
           ))}
         </div>
