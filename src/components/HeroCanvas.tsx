@@ -65,9 +65,9 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
   });
 
   const getParticleSpacing = (width: number) => {
-    if (width < 640) return 14; // Ultra-smooth on mobile
-    if (width < 1024) return 10; // Tablet
-    return 8; // Desktop
+    if (width < 640) return 14;
+    if (width < 1024) return 10;
+    return 8;
   };
 
   const extractParticleTargets = useCallback((img: HTMLImageElement, canvasWidth: number, canvasHeight: number) => {
@@ -78,11 +78,11 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     if (!tempCtx) return [];
 
     const spacing = getParticleSpacing(canvasWidth);
-    const scale = Math.min((canvasWidth * 0.88) / img.width, (canvasHeight * 0.88) / img.height);
+    const scale = Math.min((canvasWidth * 0.85) / img.width, (canvasHeight * 0.82) / img.height);
     const w = img.width * scale;
     const h = img.height * scale;
     const xOffset = (canvasWidth - w) / 2;
-    const yOffset = (canvasHeight - h) / 2;
+    const yOffset = (canvasHeight - h) / 2 - (canvasWidth < 640 ? 15 : 0);
 
     tempCtx.drawImage(img, xOffset, yOffset, w, h);
 
@@ -211,7 +211,7 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     morphToGarment(prev);
   }, [currentIndex, morphToGarment]);
 
-  // Mobile Touch Swipe Gesture handlers
+  // Mobile Touch Swipe
   const handleTouchStart = (e: TouchEvent<HTMLCanvasElement>) => {
     if (e.touches.length === 1) {
       touchStartRef.current = {
@@ -226,12 +226,11 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
       const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
       const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
 
-      // Horizontal swipe threshold
-      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
         if (deltaX < 0) {
-          nextGarment(); // Swipe Left -> Next
+          nextGarment();
         } else {
-          prevGarment(); // Swipe Right -> Prev
+          prevGarment();
         }
       }
     }
@@ -269,8 +268,8 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
         const canvas = canvasRef.current;
         const rect = container.getBoundingClientRect();
 
-        canvas.width = Math.max(280, Math.floor(rect.width || window.innerWidth * 0.9));
-        canvas.height = Math.max(280, Math.floor(rect.height || window.innerHeight * 0.5));
+        canvas.width = Math.max(260, Math.floor(rect.width || window.innerWidth * 0.9));
+        canvas.height = Math.max(240, Math.floor(rect.height || window.innerHeight * 0.45));
 
         const initialTargets = extractParticleTargets(loaded[0], canvas.width, canvas.height);
 
@@ -376,11 +375,11 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
           ctx.save();
           ctx.globalAlpha = state.imageOpacity;
 
-          const scale = Math.min((canvas.width * 0.88) / imgToDraw.width, (canvas.height * 0.88) / imgToDraw.height);
+          const scale = Math.min((canvas.width * 0.85) / imgToDraw.width, (canvas.height * 0.82) / imgToDraw.height);
           const w = imgToDraw.width * scale;
           const h = imgToDraw.height * scale;
           const x = (canvas.width - w) / 2;
-          const y = (canvas.height - h) / 2;
+          const y = (canvas.height - h) / 2 - (canvas.width < 640 ? 15 : 0);
 
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
@@ -492,57 +491,60 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center select-none group touch-pan-y"
+      className="relative w-full h-full flex flex-col items-center justify-between select-none group touch-pan-y pb-1 sm:pb-0"
     >
-      {isCanvasSupported ? (
-        <canvas
-          ref={canvasRef}
-          onPointerMove={handlePointerMove}
-          onPointerDown={handlePointerMove}
-          onPointerLeave={handlePointerLeave}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className="w-full h-full block cursor-grab active:cursor-grabbing z-10 touch-pan-y"
-        />
-      ) : (
-        <div className="relative w-full h-full flex items-center justify-center p-4">
-          <img
-            src={GARMENTS[currentIndex].src}
-            alt={GARMENTS[currentIndex].name}
-            className="w-full h-full object-contain filter-bw transition-opacity duration-700 max-h-[60vh]"
+      {/* Canvas Area */}
+      <div className="relative w-full flex-1 flex items-center justify-center overflow-hidden min-h-[190px] sm:min-h-[260px]">
+        {isCanvasSupported ? (
+          <canvas
+            ref={canvasRef}
+            onPointerMove={handlePointerMove}
+            onPointerDown={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="w-full h-full block cursor-grab active:cursor-grabbing z-10 touch-pan-y"
           />
-        </div>
-      )}
+        ) : (
+          <div className="relative w-full h-full flex items-center justify-center p-2">
+            <img
+              src={GARMENTS[currentIndex].src}
+              alt={GARMENTS[currentIndex].name}
+              className="w-full h-full object-contain filter-bw transition-opacity duration-700 max-h-[50vh]"
+            />
+          </div>
+        )}
 
-      {/* Morph Status Indicator Pill */}
-      <div className="absolute top-1.5 right-2 sm:right-6 z-20 pointer-events-none">
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-black/85 backdrop-blur-md border border-white/15 px-2.5 sm:px-3 py-1 text-[8px] sm:text-[9px] font-mono tracking-widest text-white/80">
-          <span className={`w-1.5 h-1.5 rounded-full ${morphPhase === 'solid' ? 'bg-emerald-400' : 'bg-white animate-ping'}`} />
-          <span>
-            {morphPhase === 'solid'
-              ? 'FORM RESOLVED // 100% SOLID'
-              : morphPhase === 'solidifying'
-              ? 'SOLIDIFYING...'
-              : 'SWARM MORPHING'}
+        {/* Morph Status Indicator Pill */}
+        <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 pointer-events-none">
+          <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md border border-white/15 px-2 py-0.5 sm:px-3 sm:py-1 text-[8px] sm:text-[9px] font-mono tracking-widest text-white/80">
+            <span className={`w-1.5 h-1.5 rounded-full ${morphPhase === 'solid' ? 'bg-emerald-400' : 'bg-white animate-ping'}`} />
+            <span>
+              {morphPhase === 'solid'
+                ? '100% SOLID'
+                : morphPhase === 'solidifying'
+                ? 'SOLIDIFYING...'
+                : 'MORPHING'}
+            </span>
+          </div>
+        </div>
+
+        {/* Mobile Swipe Hint */}
+        <div className="absolute top-1 left-1 sm:hidden z-20 pointer-events-none">
+          <span className="text-[7px] font-mono text-white/40 tracking-wider bg-black/80 px-1.5 py-0.5 border border-white/10">
+            SWIPE SILHOUETTES
           </span>
         </div>
       </div>
 
-      {/* Mobile Swipe Hint on Touch Screens */}
-      <div className="absolute top-1.5 left-2 sm:hidden z-20 pointer-events-none">
-        <span className="text-[8px] font-mono text-white/40 tracking-wider bg-black/80 px-2 py-0.5 border border-white/10">
-          SWIPE &bull; TAP ARROWS
-        </span>
-      </div>
-
-      {/* Interactive Controls at Bottom of Canvas */}
-      <div className="absolute -bottom-8 sm:bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 w-full max-w-sm sm:max-w-md px-3">
-        {/* Silhouette Information Box with Apple HIG / Material 3 44px Touch Envelope */}
-        <div className="flex items-center justify-between w-full bg-[#121212]/95 backdrop-blur-md border border-white/20 p-1.5 sm:px-3 sm:py-2 text-[10px] font-mono tracking-widest text-white shadow-2xl">
-          <span className="text-white/40 text-[9px] sm:text-[10px] pl-1">{GARMENTS[currentIndex].ref}</span>
+      {/* Interactive Controls at Bottom of Canvas (Non-overlapping relative flow) */}
+      <div className="relative z-20 flex flex-col items-center gap-1.5 sm:gap-2 w-full max-w-sm sm:max-w-md px-2 sm:px-3 mt-1 sm:mt-2">
+        {/* Silhouette Information Box */}
+        <div className="flex items-center justify-between w-full bg-[#121212]/95 backdrop-blur-md border border-white/20 p-1 sm:px-3 sm:py-2 text-[10px] font-mono tracking-widest text-white shadow-xl">
+          <span className="text-white/40 text-[8px] sm:text-[10px] pl-1">{GARMENTS[currentIndex].ref}</span>
           <div className="text-center px-1 truncate flex-1">
-            <span className="font-bold text-white uppercase text-[11px] sm:text-xs block truncate">{GARMENTS[currentIndex].name}</span>
-            <span className="text-white/50 block text-[8px] sm:text-[9px]">
+            <span className="font-bold text-white uppercase text-[10px] sm:text-xs block truncate">{GARMENTS[currentIndex].name}</span>
+            <span className="text-white/50 block text-[7px] sm:text-[9px]">
               {GARMENTS[currentIndex].weight} &bull; {GARMENTS[currentIndex].fit}
             </span>
           </div>
@@ -550,47 +552,47 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
             <button
               onClick={prevGarment}
               aria-label="Previous silhouette"
-              className="min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
+              className="min-w-[34px] min-h-[34px] sm:min-w-[38px] sm:min-h-[38px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={nextGarment}
               aria-label="Next silhouette"
-              className="min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
+              className="min-w-[34px] min-h-[34px] sm:min-w-[38px] sm:min-h-[38px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Quick Modal Inspect & Add to Cart (44px Minimum Touch Targets) */}
-        <div className="flex items-center gap-2 w-full justify-center">
+        {/* Quick Modal Inspect & Add to Cart */}
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full justify-center">
           <button
             onClick={() => openProductModal(currentProduct)}
-            className="flex-1 min-h-[38px] sm:min-h-[42px] px-3 bg-white/10 hover:bg-white hover:text-black text-white text-[10px] sm:text-[11px] font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all border border-white/20 active:scale-98 cursor-pointer"
+            className="flex-1 min-h-[36px] sm:min-h-[42px] px-2 sm:px-3 bg-white/10 hover:bg-white hover:text-black text-white text-[9px] sm:text-[11px] font-mono tracking-wider flex items-center justify-center gap-1 sm:gap-1.5 transition-all border border-white/20 active:scale-98 cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5" />
+            <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>INSPECT</span>
           </button>
           <button
             onClick={() => addToCart(currentProduct, 'M')}
-            className="flex-1 min-h-[38px] sm:min-h-[42px] px-3 bg-white text-black hover:bg-white/90 text-[10px] sm:text-[11px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
+            className="flex-1 min-h-[36px] sm:min-h-[42px] px-2 sm:px-3 bg-white text-black hover:bg-white/90 text-[9px] sm:text-[11px] font-mono font-bold tracking-wider flex items-center justify-center gap-1 sm:gap-1.5 transition-all active:scale-98 cursor-pointer"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
+            <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>ADD &bull; ${GARMENTS[currentIndex].price}</span>
           </button>
         </div>
 
         {/* Morph Index Indicator Bars */}
-        <div className="flex items-center gap-2 pt-1 pb-1">
+        <div className="flex items-center gap-1.5 pt-0.5 pb-0.5">
           {GARMENTS.map((g, idx) => (
             <button
               key={idx}
               onClick={() => morphToGarment(idx)}
               aria-label={`Morph to ${g.name}`}
-              className={`h-1.5 transition-all rounded-none cursor-pointer ${
-                currentIndex === idx ? 'w-7 bg-white' : 'w-2.5 bg-white/30 hover:bg-white/60'
+              className={`h-1 sm:h-1.5 transition-all rounded-none cursor-pointer ${
+                currentIndex === idx ? 'w-5 sm:w-7 bg-white' : 'w-2 sm:w-2.5 bg-white/30 hover:bg-white/60'
               }`}
             />
           ))}
