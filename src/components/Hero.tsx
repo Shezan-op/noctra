@@ -16,34 +16,35 @@ export const Hero: React.FC = () => {
   const bgTitleRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+
     const ctx = gsap.context(() => {
       if (heroSectionRef.current && heroPinnedRef.current) {
-        // Pin hero and scrub garment index based on user vertical scroll
+        // Desktop uses full scroll scrub; mobile uses relaxed pinned range so touch scroll is fast & fluid
         ScrollTrigger.create({
           trigger: heroSectionRef.current,
           start: 'top top',
-          end: 'bottom bottom',
+          end: isMobile ? '+=100%' : '+=200%',
           pin: heroPinnedRef.current,
-          scrub: 0.5,
+          scrub: isMobile ? 0.3 : 0.6,
           onUpdate: (self) => {
             const progress = self.progress;
-            // Map 0 -> 1 to 0 -> 5
             const targetIdx = Math.min(GARMENTS.length - 1, Math.floor(progress * GARMENTS.length));
             setScrollActiveIndex(targetIdx);
             setActiveGarmentName(GARMENTS[targetIdx].name);
           },
         });
 
-        // Parallax depth shift on massive NOCTRA outline
+        // Parallax depth shift
         if (bgTitleRef.current) {
           gsap.to(bgTitleRef.current, {
             scrollTrigger: {
               trigger: heroSectionRef.current,
               start: 'top top',
-              end: 'bottom bottom',
+              end: isMobile ? '+=100%' : '+=200%',
               scrub: 1,
             },
-            yPercent: -15,
+            yPercent: isMobile ? -8 : -15,
             scale: 1.05,
             ease: 'none',
           });
@@ -60,14 +61,14 @@ export const Hero: React.FC = () => {
   };
 
   return (
-    <section ref={heroSectionRef} className="relative bg-[#0c0c0c] border-b border-white/10 min-h-[220vh]">
+    <section ref={heroSectionRef} className="relative bg-[#0c0c0c] border-b border-white/10 min-h-[160vh] md:min-h-[220vh]">
       {/* Pinned Sticky Viewport Area */}
       <div ref={heroPinnedRef} className="h-screen w-full flex flex-col justify-between overflow-hidden relative pt-16 sm:pt-20">
         {/* Top runway ticker */}
         <Marquee />
 
         {/* Main Viewport Content */}
-        <div className="relative flex-1 flex flex-col justify-between items-center py-4 sm:py-6 px-4 sm:px-6 overflow-hidden">
+        <div className="relative flex-1 flex flex-col justify-between items-center py-2 sm:py-6 px-3 sm:px-6 overflow-hidden">
           {/* Massive Background Outlined Text (Behind Canvas) */}
           <div
             ref={bgTitleRef}
@@ -79,13 +80,13 @@ export const Hero: React.FC = () => {
           </div>
 
           {/* Top Spec Header */}
-          <div className="w-full max-w-7xl flex items-center justify-between z-20 text-[10px] sm:text-xs font-mono tracking-widest text-white/50 border-b border-white/5 pb-2.5">
-            <div className="flex items-center gap-2">
+          <div className="w-full max-w-7xl flex items-center justify-between z-20 text-[9px] sm:text-xs font-mono tracking-widest text-white/50 border-b border-white/5 pb-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
               <span className="text-white/90 font-bold">[ SYS.GEN.01 ]</span>
-              <span className="hidden sm:inline text-white/40">// SCROLL-DRIVEN RUNWAY MORPH</span>
+              <span className="hidden sm:inline text-white/40">// SCROLL RUNWAY</span>
             </div>
-            <div className="flex items-center gap-4 text-white/60">
+            <div className="flex items-center gap-3 sm:gap-4 text-white/60">
               <span className="hidden sm:inline">
                 ACTIVE: {GARMENTS[scrollActiveIndex].weight}
               </span>
@@ -95,7 +96,7 @@ export const Hero: React.FC = () => {
             </div>
           </div>
 
-          {/* Left Vertical Interactive Product Rail (Desktop) */}
+          {/* Left Vertical Interactive Product Rail (Desktop Only) */}
           <div className="hidden xl:flex absolute left-8 top-1/2 -translate-y-1/2 z-20 flex-col gap-3 font-mono text-[10px] text-white/40 border-l border-white/10 pl-3">
             <span className="text-[9px] tracking-widest text-white/60 mb-1 flex items-center gap-1">
               <Layers className="w-3 h-3" /> ARCHIVE STACK
@@ -120,7 +121,7 @@ export const Hero: React.FC = () => {
           </div>
 
           {/* Central Interactive Particle Morph Canvas */}
-          <div className="relative z-10 w-full max-w-2xl h-[44vh] sm:h-[50vh] lg:h-[54vh] min-h-[290px] flex items-center justify-center my-auto">
+          <div className="relative z-10 w-full max-w-2xl h-[46vh] sm:h-[50vh] lg:h-[54vh] min-h-[280px] flex items-center justify-center my-auto">
             <HeroCanvas
               controlledIndex={scrollActiveIndex}
               onGarmentChange={(name, idx) => {
@@ -131,34 +132,34 @@ export const Hero: React.FC = () => {
           </div>
 
           {/* Bottom Editorial Copy & Scroll Indicator */}
-          <div className="w-full max-w-7xl flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 z-20 pt-3 border-t border-white/5">
+          <div className="w-full max-w-7xl flex flex-col sm:flex-row items-center sm:items-end justify-between gap-3 sm:gap-4 z-20 pt-2 border-t border-white/5">
             {/* Left Copy */}
-            <div className="space-y-1 max-w-sm">
-              <p className="font-accent text-lg sm:text-2xl text-white/95 leading-tight font-normal">
+            <div className="space-y-0.5 sm:space-y-1 max-w-sm text-center sm:text-left">
+              <p className="font-accent text-base sm:text-2xl text-white/95 leading-tight font-normal">
                 The standard is obsolete.
               </p>
-              <p className="font-body text-xs text-white/60 font-light leading-relaxed">
-                Scroll vertically to cycle through 6 archival streetwear silhouettes engineered with Japanese dense cotton.
+              <p className="font-body text-[11px] sm:text-xs text-white/60 font-light leading-relaxed">
+                Scroll vertically to morph through 6 archival streetwear silhouettes.
               </p>
             </div>
 
-            {/* Center Callout Pill */}
+            {/* Center Callout Pill (Desktop) */}
             <div className="hidden lg:flex items-center gap-2.5 bg-white/5 border border-white/10 px-3.5 py-1.5 text-xs font-mono">
               <Sparkles className="w-3 h-3 text-emerald-400 animate-pulse" />
               <span className="text-white/40">SCROLL DRIVEN:</span>
               <span className="text-white font-bold">{activeGarmentName}</span>
               <span className="text-[9px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.2">
-                GSAP SCRUB ACTIVE
+                GSAP ACTIVE
               </span>
             </div>
 
-            {/* Right Scroll Indicator */}
+            {/* Right Scroll Indicator with 44px Touch Target */}
             <button
               onClick={scrollToLookbook}
-              className="flex items-center gap-3 border border-white/20 bg-white/5 hover:bg-white hover:text-black px-4 py-2.5 sm:px-5 sm:py-3 transition-all text-xs font-mono tracking-widest text-white/90 group cursor-pointer"
+              className="min-h-[44px] flex items-center gap-2.5 border border-white/20 bg-white/5 hover:bg-white hover:text-black px-4 py-2.5 sm:px-5 sm:py-3 transition-all text-[11px] sm:text-xs font-mono tracking-widest text-white/90 group cursor-pointer active:scale-95"
             >
               <span>SCROLL CATALOG</span>
-              <ArrowDown className="w-4 h-4 group-hover:translate-y-1 transition-transform" />
+              <ArrowDown className="w-3.5 h-3.5 group-hover:translate-y-1 transition-transform" />
             </button>
           </div>
         </div>

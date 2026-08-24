@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, type FC, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, useCallback, type FC, type PointerEvent, type TouchEvent } from 'react';
 import { ChevronLeft, ChevronRight, Eye, ShoppingBag } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
 import { useCart } from '../context/CartContext';
@@ -40,12 +40,13 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  
   const [isCanvasSupported, setIsCanvasSupported] = useState(true);
   const [morphPhase, setMorphPhase] = useState<'solid' | 'dissolving' | 'morphing' | 'solidifying'>('solid');
 
   const particlesRef = useRef<Particle[]>([]);
   const imagesRef = useRef<HTMLImageElement[]>([]);
+  const touchStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const stateRef = useRef({
     currentIndex: 0,
     targetIndex: 0,
@@ -64,9 +65,9 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
   });
 
   const getParticleSpacing = (width: number) => {
-    if (width < 640) return 12;
-    if (width < 1024) return 10;
-    return 8;
+    if (width < 640) return 14; // Ultra-smooth on mobile
+    if (width < 1024) return 10; // Tablet
+    return 8; // Desktop
   };
 
   const extractParticleTargets = useCallback((img: HTMLImageElement, canvasWidth: number, canvasHeight: number) => {
@@ -133,7 +134,7 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
 
     const state = stateRef.current;
     if (state.phase !== 'solid' && state.targetIndex === nextIdx) return;
-    
+
     state.targetIndex = nextIdx;
     state.phase = 'dissolving';
     state.phaseStartTime = performance.now();
@@ -192,7 +193,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     }
   }, [extractParticleTargets, onGarmentChange]);
 
-  // Sync with controlled index from vertical scroll
   useEffect(() => {
     if (controlledIndex !== undefined && controlledIndex >= 0 && controlledIndex < GARMENTS.length) {
       if (controlledIndex !== currentIndex) {
@@ -210,6 +210,32 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     const prev = (currentIndex - 1 + GARMENTS.length) % GARMENTS.length;
     morphToGarment(prev);
   }, [currentIndex, morphToGarment]);
+
+  // Mobile Touch Swipe Gesture handlers
+  const handleTouchStart = (e: TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+    }
+  };
+
+  const handleTouchEnd = (e: TouchEvent<HTMLCanvasElement>) => {
+    if (e.changedTouches.length === 1) {
+      const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+      const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+
+      // Horizontal swipe threshold
+      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+        if (deltaX < 0) {
+          nextGarment(); // Swipe Left -> Next
+        } else {
+          prevGarment(); // Swipe Right -> Prev
+        }
+      }
+    }
+  };
 
   // Preload images
   useEffect(() => {
@@ -243,8 +269,8 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
         const canvas = canvasRef.current;
         const rect = container.getBoundingClientRect();
 
-        canvas.width = Math.max(300, Math.floor(rect.width || window.innerWidth * 0.45));
-        canvas.height = Math.max(300, Math.floor(rect.height || window.innerHeight * 0.55));
+        canvas.width = Math.max(280, Math.floor(rect.width || window.innerWidth * 0.9));
+        canvas.height = Math.max(280, Math.floor(rect.height || window.innerHeight * 0.5));
 
         const initialTargets = extractParticleTargets(loaded[0], canvas.width, canvas.height);
 
@@ -275,8 +301,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
           setIsCanvasSupported(false);
         }
       }
-
-      
     };
 
     loadImages();
@@ -286,7 +310,7 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     };
   }, [extractParticleTargets]);
 
-  // 60 FPS loop
+  // 60 FPS Particle animation loop
   useEffect(() => {
     if (!isCanvasSupported) return;
 
@@ -360,7 +384,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
 
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-
           ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
           ctx.shadowBlur = 30;
           ctx.shadowOffsetY = 15;
@@ -370,7 +393,7 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
         }
       }
 
-      // Draw dynamic particles
+      // Draw particles
       if (state.particleOpacity > 0.01 || mouse.active) {
         ctx.save();
         ctx.globalAlpha = state.particleOpacity;
@@ -425,19 +448,6 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
         ctx.restore();
       }
 
-      // Micro spark
-      if (state.phase === 'solid' && mouse.active) {
-        ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        for (let i = 0; i < 6; i++) {
-          const sparkAngle = (time * 0.003 + (i * Math.PI) / 3);
-          const sx = mouse.x + Math.cos(sparkAngle) * 25;
-          const sy = mouse.y + Math.sin(sparkAngle) * 25;
-          ctx.fillRect(sx, sy, 3, 3);
-        }
-        ctx.restore();
-      }
-
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -461,14 +471,14 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
     return () => window.removeEventListener('resize', handleResize);
   }, [currentIndex, morphToGarment]);
 
-  // Mouse & Touch interaction
+  // Mouse interaction
   const handlePointerMove = (e: PointerEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     mouseRef.current.x = e.clientX - rect.left;
     mouseRef.current.y = e.clientY - rect.top;
     mouseRef.current.active = true;
-    mouseRef.current.radius = window.innerWidth < 640 ? 60 : 90;
+    mouseRef.current.radius = window.innerWidth < 640 ? 50 : 90;
   };
 
   const handlePointerLeave = () => {
@@ -482,7 +492,7 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center select-none group"
+      className="relative w-full h-full flex items-center justify-center select-none group touch-pan-y"
     >
       {isCanvasSupported ? (
         <canvas
@@ -490,88 +500,97 @@ export const HeroCanvas: FC<HeroCanvasProps> = ({ onGarmentChange, controlledInd
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerMove}
           onPointerLeave={handlePointerLeave}
-          className="w-full h-full block cursor-grab active:cursor-grabbing touch-none z-10"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="w-full h-full block cursor-grab active:cursor-grabbing z-10 touch-pan-y"
         />
       ) : (
-        <div className="relative w-full h-full flex items-center justify-center p-6">
+        <div className="relative w-full h-full flex items-center justify-center p-4">
           <img
             src={GARMENTS[currentIndex].src}
             alt={GARMENTS[currentIndex].name}
-            className="w-full h-full object-contain filter-bw transition-opacity duration-700 max-h-[65vh]"
+            className="w-full h-full object-contain filter-bw transition-opacity duration-700 max-h-[60vh]"
           />
         </div>
       )}
 
       {/* Morph Status Indicator Pill */}
-      <div className="absolute top-2 right-2 sm:right-6 z-20 pointer-events-none">
-        <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md border border-white/15 px-3 py-1 text-[9px] font-mono tracking-widest text-white/80">
+      <div className="absolute top-1.5 right-2 sm:right-6 z-20 pointer-events-none">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-black/85 backdrop-blur-md border border-white/15 px-2.5 sm:px-3 py-1 text-[8px] sm:text-[9px] font-mono tracking-widest text-white/80">
           <span className={`w-1.5 h-1.5 rounded-full ${morphPhase === 'solid' ? 'bg-emerald-400' : 'bg-white animate-ping'}`} />
           <span>
             {morphPhase === 'solid'
               ? 'FORM RESOLVED // 100% SOLID'
               : morphPhase === 'solidifying'
-              ? 'SOLIDIFYING INTO CLOTH...'
-              : 'PARTICLE MORPH ACTIVE'}
+              ? 'SOLIDIFYING...'
+              : 'SWARM MORPHING'}
           </span>
         </div>
       </div>
 
+      {/* Mobile Swipe Hint on Touch Screens */}
+      <div className="absolute top-1.5 left-2 sm:hidden z-20 pointer-events-none">
+        <span className="text-[8px] font-mono text-white/40 tracking-wider bg-black/80 px-2 py-0.5 border border-white/10">
+          SWIPE &bull; TAP ARROWS
+        </span>
+      </div>
+
       {/* Interactive Controls at Bottom of Canvas */}
-      <div className="absolute -bottom-6 sm:bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 w-full max-w-xs sm:max-w-md px-4">
-        {/* Silhouette Information Box */}
-        <div className="flex items-center justify-between w-full bg-[#121212]/95 backdrop-blur-md border border-white/20 px-3 py-2 text-[10px] font-mono tracking-widest text-white shadow-2xl">
-          <span className="text-white/40">{GARMENTS[currentIndex].ref}</span>
-          <div className="text-center px-2 truncate">
-            <span className="font-bold text-white uppercase">{GARMENTS[currentIndex].name}</span>
-            <span className="text-white/40 block text-[9px]">
+      <div className="absolute -bottom-8 sm:bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 w-full max-w-sm sm:max-w-md px-3">
+        {/* Silhouette Information Box with Apple HIG / Material 3 44px Touch Envelope */}
+        <div className="flex items-center justify-between w-full bg-[#121212]/95 backdrop-blur-md border border-white/20 p-1.5 sm:px-3 sm:py-2 text-[10px] font-mono tracking-widest text-white shadow-2xl">
+          <span className="text-white/40 text-[9px] sm:text-[10px] pl-1">{GARMENTS[currentIndex].ref}</span>
+          <div className="text-center px-1 truncate flex-1">
+            <span className="font-bold text-white uppercase text-[11px] sm:text-xs block truncate">{GARMENTS[currentIndex].name}</span>
+            <span className="text-white/50 block text-[8px] sm:text-[9px]">
               {GARMENTS[currentIndex].weight} &bull; {GARMENTS[currentIndex].fit}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={prevGarment}
-              aria-label="Previous garment"
-              className="p-1 border border-white/20 hover:bg-white hover:text-black transition-colors"
+              aria-label="Previous silhouette"
+              className="min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={nextGarment}
-              aria-label="Next garment"
-              className="p-1 border border-white/20 hover:bg-white hover:text-black transition-colors"
+              aria-label="Next silhouette"
+              className="min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] flex items-center justify-center border border-white/20 hover:bg-white hover:text-black active:scale-95 transition-all cursor-pointer"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Quick Modal Inspect & Add to Cart */}
-        <div className="flex items-center gap-2">
+        {/* Quick Modal Inspect & Add to Cart (44px Minimum Touch Targets) */}
+        <div className="flex items-center gap-2 w-full justify-center">
           <button
             onClick={() => openProductModal(currentProduct)}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white hover:text-black text-white text-[10px] font-mono tracking-wider flex items-center gap-1.5 transition-all border border-white/20"
+            className="flex-1 min-h-[38px] sm:min-h-[42px] px-3 bg-white/10 hover:bg-white hover:text-black text-white text-[10px] sm:text-[11px] font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all border border-white/20 active:scale-98 cursor-pointer"
           >
-            <Eye className="w-3 h-3" />
-            <span>INSPECT SPECS</span>
+            <Eye className="w-3.5 h-3.5" />
+            <span>INSPECT</span>
           </button>
           <button
             onClick={() => addToCart(currentProduct, 'M')}
-            className="px-3 py-1.5 bg-white text-black hover:bg-white/90 text-[10px] font-mono font-bold tracking-wider flex items-center gap-1.5 transition-all"
+            className="flex-1 min-h-[38px] sm:min-h-[42px] px-3 bg-white text-black hover:bg-white/90 text-[10px] sm:text-[11px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
           >
-            <ShoppingBag className="w-3 h-3" />
-            <span>QUICK ADD (${GARMENTS[currentIndex].price})</span>
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>ADD &bull; ${GARMENTS[currentIndex].price}</span>
           </button>
         </div>
 
         {/* Morph Index Indicator Bars */}
-        <div className="flex items-center gap-1.5 pt-1">
+        <div className="flex items-center gap-2 pt-1 pb-1">
           {GARMENTS.map((g, idx) => (
             <button
               key={idx}
               onClick={() => morphToGarment(idx)}
               aria-label={`Morph to ${g.name}`}
-              className={`h-1 transition-all rounded-none ${
-                currentIndex === idx ? 'w-6 bg-white' : 'w-2 bg-white/30 hover:bg-white/60'
+              className={`h-1.5 transition-all rounded-none cursor-pointer ${
+                currentIndex === idx ? 'w-7 bg-white' : 'w-2.5 bg-white/30 hover:bg-white/60'
               }`}
             />
           ))}

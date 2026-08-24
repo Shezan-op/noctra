@@ -29,13 +29,13 @@ export const NewsletterSection: React.FC = () => {
   };
 
   return (
-    <section id="vip-drop" className="border-b border-white/10 bg-[#0c0c0c] py-20 sm:py-28 relative overflow-hidden">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-8">
+    <section id="vip-drop" className="border-b border-white/10 bg-[#0c0c0c] py-14 sm:py-24 relative overflow-hidden">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6 sm:space-y-8">
         <div className="space-y-3">
           <span className="text-[10px] sm:text-xs font-mono tracking-[0.3em] text-white/50 uppercase block">
             // DROP 01 IS LIVE &bull; DROP 02 ALLOCATION
           </span>
-          <h2 className="font-head text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white uppercase leading-[0.9]">
+          <h2 className="font-head text-3xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white uppercase leading-[0.9]">
             IT WON'T <br />
             <span className="font-accent italic text-white/80 font-normal">wait for you</span>.
           </h2>
@@ -44,11 +44,11 @@ export const NewsletterSection: React.FC = () => {
           </p>
         </div>
 
-        {/* Action Button: Jump to Lookbook */}
+        {/* Action Button: Jump to Lookbook with 48px Minimum Height */}
         <div className="pt-2">
           <button
             onClick={scrollToLookbook}
-            className="inline-flex items-center gap-3 px-8 sm:px-12 py-4 sm:py-5 border border-white text-white bg-transparent hover:bg-white hover:text-black transition-all duration-300 rounded-full font-head text-xs sm:text-sm font-bold tracking-widest uppercase group cursor-pointer shadow-2xl"
+            className="inline-flex items-center gap-3 px-6 sm:px-12 py-3.5 sm:py-5 border border-white text-white bg-transparent hover:bg-white hover:text-black transition-all duration-300 rounded-full font-head text-xs sm:text-sm font-bold tracking-widest uppercase group cursor-pointer shadow-2xl active:scale-95 min-h-[48px]"
           >
             <span>ENTER STORE &bull; SHOP DROP 01</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
@@ -56,7 +56,7 @@ export const NewsletterSection: React.FC = () => {
         </div>
 
         {/* VIP Access Email Form */}
-        <div className="max-w-md mx-auto pt-8 border-t border-white/10">
+        <div className="max-w-md mx-auto pt-6 sm:pt-8 border-t border-white/10">
           <span className="block font-mono text-[10px] text-white/40 tracking-widest uppercase mb-3">
             PRIVATE VIP EARLY ACCESS PASS
           </span>
@@ -73,12 +73,12 @@ export const NewsletterSection: React.FC = () => {
                 placeholder="ENTER YOUR EMAIL"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="flex-1 bg-[#121212] border border-white/20 px-4 py-3 text-xs font-mono tracking-wider text-white placeholder:text-white/30 focus:outline-none focus:border-white uppercase"
+                className="flex-1 min-h-[48px] bg-[#121212] border border-white/20 px-4 py-3 text-base sm:text-xs font-mono tracking-wider text-white placeholder:text-white/30 focus:outline-none focus:border-white uppercase"
               />
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-3 bg-white text-black font-head text-xs font-bold tracking-widest uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="min-h-[48px] px-6 py-3 bg-white text-black font-head text-xs font-bold tracking-widest uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-98"
               >
                 {isSubmitting ? 'ENROLLING...' : 'ENROLL'}
               </button>
@@ -89,12 +89,12 @@ export const NewsletterSection: React.FC = () => {
             <p className="mt-2 text-[10px] font-mono text-red-400 text-left">{errorMsg}</p>
           )}
 
-          <div className="mt-4 flex items-center justify-center gap-4 text-[10px] font-mono text-white/40">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[10px] font-mono text-white/40">
             <span>NO SPAM</span>
             <span>&bull;</span>
-            <span>ONLY DROP NOTIFICATIONS</span>
+            <span>DROP ALERTS ONLY</span>
             <span>&bull;</span>
-            <span>INSTANT UNSUBSCRIBE</span>
+            <span>UNSUBSCRIBE ANYTIME</span>
           </div>
         </div>
       </div>
